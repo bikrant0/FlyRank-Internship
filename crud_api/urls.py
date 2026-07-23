@@ -16,7 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from . import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('tasks/', views.task_list, name="Task"),
+    path('tasks/<int:task_id>/', views.task_detail),
+
 ]
+
+
+#did POST and PUT need to be update... also i was working in DEELTE API..
