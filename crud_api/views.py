@@ -1,5 +1,5 @@
 import json
-from django.http import JsonResponse
+from django.http import HttpResponse,JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 
@@ -62,3 +62,88 @@ def task_detail(request, task_id):
         target_task["done"] = new_data.get("done", target_task["done"])
 
         return JsonResponse(target_task, status=200)
+
+#Adding Swagger UI
+def openapi_schema(request):
+    schema = {
+        "openapi": "3.0.0",
+        "info": {"title": "Task CRUD API", "version": "1.0.0"},
+        "paths": {
+            "/tasks/": {
+                "get": {
+                    "summary": "List all tasks", 
+                    "responses": {"200": {"description": "OK"}}
+                },
+                "post": {
+                    "summary": "Create a task",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string", "example": "Learn Swagger UI"}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {"201": {"description": "Created"}, "400": {"description": "Bad Request"}}
+                }
+            },
+            "/tasks/{task_id}/": {
+                "put": {
+                    "summary": "Update a task",
+                    "parameters": [{"name": "task_id", "in": "path", "required": True, "schema": {"type": "integer"}}],
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string", "example": "Updated task title"},
+                                        "done": {"type": "boolean", "example": True}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {"200": {"description": "OK"}, "404": {"description": "Not Found"}}
+                },
+                "delete": {
+                    "summary": "Delete a task",
+                    "parameters": [{"name": "task_id", "in": "path", "required": True, "schema": {"type": "integer"}}],
+                    "responses": {"204": {"description": "No Content"}, "404": {"description": "Not Found"}}
+                }
+            }
+        }
+    }
+    return JsonResponse(schema)
+
+def docs(request):
+    # This serves the Swagger UI web page
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Swagger UI</title>
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+        <script>
+            window.onload = () => {
+                window.ui = SwaggerUIBundle({
+                    url: '/openapi.json',  // Points to the schema view we just made
+                    dom_id: '#swagger-ui',
+                });
+            };
+        </script>
+    </body>
+    </html>
+    """
+    return HttpResponse(html_content)

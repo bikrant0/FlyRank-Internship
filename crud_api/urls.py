@@ -22,8 +22,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('tasks/', views.task_list, name="Task"),
     path('tasks/<int:task_id>/', views.task_detail),
+    path('openapi.json/', views.openapi_schema, name="OpenAPISchema"),
+    path('docs/', views.docs, name="Documentations")
 
 ]
 
-
-#did POST and PUT need to be update... also i was working in DEELTE API..
