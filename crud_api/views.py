@@ -70,18 +70,30 @@ def task_list(request):
     elif request.method == "POST":
         new_data = json.loads(request.body)
         title = new_data.get('title')
-        
+
+        # Validatinf: missing title returns 400
         if not title:
             return JsonResponse({"error": "Title is missing."}, status= 404)
- 
+
+        conn = sqlite3.connect('tasks.db')
+        cursor = conn.cursor()
+
+        cursor.execute('INSERT INTO tasks(title, done) VALUES (?,?)', (title, False))
+
+        # Sving the changes.
+        conn.commit()
+
+        # Get tje ID that Sqlite automatically created for us
+        new_id = cursor.lastrowid
+        conn.close()
+
+        # Return 201 Created response.        
         new_task = {
-            "id": 4,
+            "id": new_id,
             "title": title,
             "done": False
         }
 
-        #Adding global list and return output
-        tasks.append(new_task)
         return JsonResponse(new_task,  status = 201)
     
 @csrf_exempt
