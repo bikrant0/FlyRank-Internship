@@ -1,19 +1,70 @@
 import json
+import sqlite3
 from django.http import HttpResponse,JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
+def init_db():
+    #Connecting to SQLite
+    conn = sqlite3.connect('tasks.db')
+    cursor = conn.cursor()
 
-tasks = [
-    {"id":1, "title":"Learn Django", "done":False},
-    {"id":2, "title":"Build crud api", "done":False},
-    {"id":3, "title":"Push to Github", "done":False}
-]
+    # Creating table if it doesn't exits.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            done BOOLEAN NOT NULL DEFAULT 0
+        )
+    ''')
+
+    # Checking if table is empty
+    cursor.execute('SELECT COUNT(*) FROM tasks')
+    count = cursor.fetchone()[0]
+
+
+    if count == 0:
+        example_tasks = [
+            ("Learn Django", 0),
+            ("Build crud api", 0),
+            ("Push to Github", 0)
+        ]
+
+        # (?,?) prevents SQL injection hackers.
+        cursor.executemany('''
+            INSERT INTO tasks ( title, done) VALUES (?, ?)
+        ''', example_tasks)
+        conn.commit()
+
+    conn.close()
+
+init_db()
 
 @csrf_exempt
 def task_list(request):
     #Reading the task
     if request.method == 'GET':
-        return JsonResponse(tasks , safe=False)
+        conn = sqlite3.connect('tasks.db')
+
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Executing raw SQL query to get every task.
+        cursor.execute('SELECT * FROM tasks')
+        rows = cursor.fetchall()
+
+        # Translating SQL row into Python List of dictionaries.
+        tasks_list = []
+        for row in rows:
+            tasks_list.append({
+                "id" : row["id"],
+                "title" : row["title"],
+                "done" : bool(row["done"]) #Converts 0/1 integer back to True/False
+            })
+
+        conn.close()
+        return JsonResponse(tasks_list, safe=False)
+
+    
 
     #Adding or Creating Task
     elif request.method == "POST":
@@ -21,7 +72,7 @@ def task_list(request):
         title = new_data.get('title')
         
         if not title:
-            return JsonResponse({"error": "Title is missing."}, status= 400)
+            return JsonResponse({"error": "Title is missing."}, status= 404)
  
         new_task = {
             "id": 4,
@@ -35,16 +86,23 @@ def task_list(request):
     
 @csrf_exempt
 def task_detail(request, task_id):
-    #Finding Task
-    target_task = None
-    for task in tasks:
-        if task["id"] == task_id:
-            target_task = task
-            break
+    conn = sqlite3.connect('tasks.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
 
-    # validation
-    if not target_task:
-        return JsonResponse({"error":"Task not found."}, status=404)
+    cursor.execute('SELECT * FROM tasks WHERE id = ?', (task_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return JsonResponse({"error": "Task not found."}, status = 404)
+
+    # Translate the SQL row into a dictionary
+    task = {
+        "id" : row["id"],
+        "title" : row["title"],
+        "done" : bool(row["done"])
+    }
 
     if request.method == 'DELETE':
         tasks.remove(target_task)
