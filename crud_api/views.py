@@ -2,6 +2,7 @@ import json
 import sqlite3
 from django.http import HttpResponse,JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from datetime import datetime
 
 def init_db():
     #Connecting to SQLite
@@ -77,10 +78,10 @@ def task_list(request):
 
         conn = sqlite3.connect('tasks.db')
         cursor = conn.cursor()
-
-        cursor.execute('INSERT INTO tasks(title, done) VALUES (?,?)', (title, False))
-
-        # Sving the changes.
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute('INSERT INTO tasks(title, done, created_at, updated_at) VALUES (?,?,?,?)', (title, False,current_time, current_time))
+        
+        # Saving the changes.
         conn.commit()
 
         # Get tje ID that Sqlite automatically created for us
@@ -91,7 +92,9 @@ def task_list(request):
         new_task = {
             "id": new_id,
             "title": title,
-            "done": False
+            "done": False,
+            #"created_at": 'created_at',
+            #"updated_at" : updated_at,
         }
 
         return JsonResponse(new_task,  status = 201)
@@ -109,29 +112,63 @@ def task_detail(request, task_id):
     if not row:
         return JsonResponse({"error": "Task not found."}, status = 404)
 
-    # Translate the SQL row into a dictionary
-    task = {
+        # Translate the SQL row into a dictionary
+        task = {
         "id" : row["id"],
         "title" : row["title"],
         "done" : bool(row["done"])
-    }
+        }
 
-    if request.method == 'DELETE':
-        tasks.remove(target_task)
-        return JsonResponse({}, status = 204)
-
-
-    elif request.method == 'PUT':
+    elif request.method == "PUT":
         new_data = json.loads(request.body)
-        new_title = new_data.get("title", target_task["title"])
+
+        # Connecting and verifying task exists first
+        conn = sqlite3.connect('tasks.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM tasks WHERE id = ?', (task_id,))
+        if not row:
+            conn.close()
+            return JsonResponse({"error": "Task not found."}, status = 404)
+
+        new_title = new_data.get("title", row["title"])
+        raw_done = new_data.get("done", bool(row["done"]))
+        new_done = 1 if raw_done else 0
 
         if not new_title:
-            return JsonResponse({"error":"Title cannot be empty."},  status=400)
-        
-        target_task["title"] = new_title
-        target_task["done"] = new_data.get("done", target_task["done"])
+            conn.close()
+            return JsonResponse({"error":"Title cannot be empty."},  status=400)  
 
-        return JsonResponse(target_task, status=200)
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute('UPDATE tasks SET title= ?, done = ?, updated_at= ? WHERE id = ?', (new_title, new_done, current_time, task_id))
+        conn.commit()
+        conn.close()
+
+        return JsonResponse(
+            {
+            "id": task_id, 
+            "title": new_title, 
+            "done": bool(new_done),
+            "created_at" : row["created_at"],
+            "updated_at" : current_time,
+            }, status=200)
+
+    elif request.method == 'DELETE':
+        conn = sqlite3.connect('tasks_db')
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT id FROM tasks WHERE id = ?', (task_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return JsonResponse({"error":"Task not found!"}, status = 404)
+
+            cursor.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+
+            conn.commit()
+            conn.close()
+
+            return JsonResponse({}, status = 204)
 
 #Adding Swagger UI
 def openapi_schema(request):
